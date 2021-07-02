@@ -34,7 +34,7 @@ class MoveFiles extends BuildTask
     public function run($request)
     {
         $folderName = self::config()->get('folder_name');
-        $oldPath = Controller::join_links(ASSETS_PATH, '..', $folderName);
+        $oldPath = Controller::join_links(Director::baseFolder(), $folderName);
         $newPath = Controller::join_links(ASSETS_PATH, $folderName);
         if (! file_exists($newPath)) {
             if (file_exists($oldPath)) {
