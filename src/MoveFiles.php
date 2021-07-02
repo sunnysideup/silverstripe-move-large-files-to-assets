@@ -35,7 +35,8 @@ class MoveFiles extends BuildTask
     {
         $folderNameFromConfig = self::config()->get('folder_name');
         $oldPathFromConfig = Controller::join_links(Director::baseFolder(), $folderNameFromConfig);
-        $base = Director::baseFolder(). $folderNameFromConfig;
+        $base = Director::baseFolder();
+        $baseWithFolderNameFromConfig = Controller::join_links($base, $folderNameFromConfig);
 
         if(is_dir($oldPathFromConfig)) {
             $files = $this->getDirContents($oldPathFromConfig);
@@ -48,50 +49,53 @@ class MoveFiles extends BuildTask
                 $newRelativePath = $folderNameFromConfig;
             }
             $newPath = Controller::join_links(ASSETS_PATH, $newRelativePath);
+            $newRelativeFolderPath = ltrim(dirname($newRelativePath), '/');
+            $newFolderPath = Controller::join_links(ASSETS_PATH, $newRelativeFolderPath);
+            if(dirname($newPath) !== $newFolderPath) {
+                user_error('error in logic');
+                die('-----');
+            }
+            DB::alteration_message('base ' . $base);
+            DB::alteration_message('Moving ' . $oldPath . ' to ' . $newPath . '');
             if (! file_exists($newPath)) {
                 if (file_exists($oldPath)) {
-                    DB::alteration_message('Moving ' . $oldPath . ' to ' . $newPath . '');
-                    rename($oldPath, $newPath);
+                    DB::alteration_message('Creating Dir: ' . $newRelativeFolderPath);
+                    Folder::find_or_make($newRelativeFolderPath);
+                    if(file_exists($newFolderPath)) {
+                        DB::alteration_message('Moving ' . $oldPath . ' to ' . $newPath . '');
+                        rename($oldPath, $newPath);
+                        $this->addToDb($newPath);
+                    } else {
+                        DB::alteration_message('Could not create dir: '.$newFolderPath);
+                    }
                 } else {
                     DB::alteration_message('Could not move ' . $oldPath . ' to ' . $newPath . ' because ' . $oldPath . ' does not exist.');
                 }
             } else {
                 DB::alteration_message('Could not move ' . $oldPath . ' to ' . $newPath . ' because ' . $newPath . ' already exists.');
             }
-            $this->addToDb($newPath);
         }
     }
 
-    public function addToDb(string $newFolderPath)
+    public function addToDb(string $newPath)
     {
-        DB::alteration_message('scanning ' . $newFolderPath);
-        $paths = scandir($newFolderPath);
-        if ($paths && is_array($paths) && count($paths) < 100) {
-            foreach ($paths as $path) {
-                $path = Controller::join_links($newFolderPath, $path);
-                DB::alteration_message('considering ' . $path);
-                if (! is_dir($path)) {
-                    $fileName = basename($path);
-                    $folderPath = dirname($path);
-                    $folder = Folder::find_or_make($folderPath);
-                    $filter = ['Name' => $fileName, 'ParentID' => $folder->ID];
-                    $file = File::get()->filter($filter)->first();
-                    if (! $file) {
-                        DB::alteration_message('New file: ' . $path);
-                        $file = File::create();
-                        $file->setFromLocalFile($path);
-                        $file->ParentID = $folder->ID;
-                        $file->write();
-                        $file->doPublish();
-                    } else {
-                        DB::alteration_message('existing file: ' . $path);
-                    }
-                } else {
-                    DB::alteration_message('skipping ' . $path);
-                }
+        DB::alteration_message('considering ' . $newPath);
+        if (! is_dir($newPath)) {
+            $fileName = basename($newPath);
+            $folderPath = dirname($newPath);
+            $folder = Folder::find_or_make($folderPath);
+            $filter = ['Name' => $fileName, 'ParentID' => $folder->ID];
+            $file = File::get()->filter($filter)->first();
+            if (! $file) {
+                DB::alteration_message('New file: ' . $newPath);
+                $file = File::create();
+                $file->setFromLocalFile($newPath);
+                $file->ParentID = $folder->ID;
+                $file->write();
+                $file->doPublish();
+            } else {
+                DB::alteration_message('existing file: ' . $newPath);
             }
-        } else {
-            DB::alteration_message('nothing to add');
         }
     }
 
