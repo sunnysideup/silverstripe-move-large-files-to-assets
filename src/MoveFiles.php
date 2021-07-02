@@ -33,20 +33,33 @@ class MoveFiles extends BuildTask
      */
     public function run($request)
     {
-        $folderName = self::config()->get('folder_name');
-        $oldPath = Controller::join_links(Director::baseFolder(), $folderName);
-        $newPath = Controller::join_links(ASSETS_PATH, $folderName);
-        if (! file_exists($newPath)) {
-            if (file_exists($oldPath)) {
-                DB::alteration_message('Moved ' . $oldPath . ' to ' . $newPath . '');
-                rename($oldPath, $newPath);
-            } else {
-                DB::alteration_message('Could not move ' . $oldPath . ' to ' . $newPath . ' because ' . $oldPath . ' does not exist.');
-            }
+        $folderNameFromConfig = self::config()->get('folder_name');
+        $oldPathFromConfig = Controller::join_links(Director::baseFolder(), $folderNameFromConfig);
+        $base = Director::baseFolder(). $folderNameFromConfig;
+
+        if(is_dir($oldPathFromConfig)) {
+            $files = $this->getDirContents($oldPathFromConfig);
         } else {
-            DB::alteration_message('Could not move ' . $oldPath . ' to ' . $newPath . ' because ' . $newPath . ' already exists.');
+            $files = [$oldPathFromConfig];
         }
-        $this->addToDb($newPath);
+        foreach($files as $oldPath) {
+            $newRelativePath = str_replace($base, '', $oldPath);
+            if(! $newRelativePath) {
+                $newRelativePath = $folderNameFromConfig;
+            }
+            $newPath = Controller::join_links(ASSETS_PATH, $newRelativePath);
+            if (! file_exists($newPath)) {
+                if (file_exists($oldPath)) {
+                    DB::alteration_message('Moving ' . $oldPath . ' to ' . $newPath . '');
+                    rename($oldPath, $newPath);
+                } else {
+                    DB::alteration_message('Could not move ' . $oldPath . ' to ' . $newPath . ' because ' . $oldPath . ' does not exist.');
+                }
+            } else {
+                DB::alteration_message('Could not move ' . $oldPath . ' to ' . $newPath . ' because ' . $newPath . ' already exists.');
+            }
+            $this->addToDb($newPath);
+        }
     }
 
     public function addToDb(string $newFolderPath)
@@ -80,5 +93,21 @@ class MoveFiles extends BuildTask
         } else {
             DB::alteration_message('nothing to add');
         }
+    }
+
+    protected function getDirContents(string $dir, ?array &$results = []) {
+        $files = scandir($dir);
+
+        foreach ($files as $key => $value) {
+            $path = realpath($dir . DIRECTORY_SEPARATOR . $value);
+            if (!is_dir($path)) {
+                $results[] = $path;
+            } else if ($value != "." && $value != "..") {
+                $this->getDirContents($path, $results);
+                $results[] = $path;
+            }
+        }
+
+        return $results;
     }
 }
