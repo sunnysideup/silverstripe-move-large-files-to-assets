@@ -1,4 +1,4 @@
-# Contributing to assets_overview
+# Contributing to move large files to assets
 
 Please read the
 [generic write up for contributing](https://docs.silverstripe.org/en/4.0/contributing/)
