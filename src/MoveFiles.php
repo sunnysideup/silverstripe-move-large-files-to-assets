@@ -1,6 +1,6 @@
 <?php
 
-namespace SilverStripe\MoveLargeFilesToAssets;
+namespace Sunnysideup\MoveLargeFilesToAssets;
 
 use SilverStripe\Assets\File;
 use SilverStripe\Assets\Folder;
