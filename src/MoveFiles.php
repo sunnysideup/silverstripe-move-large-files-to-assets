@@ -1,5 +1,6 @@
 <?php
 
+namespace SilverStripe\MoveLargeFilesToAssets;
 
 use SilverStripe\Assets\File;
 use SilverStripe\Assets\Folder;
@@ -8,7 +9,7 @@ use SilverStripe\Control\Director;
 use SilverStripe\Dev\BuildTask;
 use SilverStripe\ORM\DB;
 
-class CopyBrochures extends BuildTask
+class MoveFiles extends BuildTask
 {
     /**
      * {@inheritDoc}
@@ -68,6 +69,7 @@ class CopyBrochures extends BuildTask
                         $file->setFromLocalFile($path);
                         $file->ParentID = $folder->ID;
                         $file->write();
+                        $file->doPublish();
                     } else {
                         DB::alteration_message('existing file: ' . $path);
                     }

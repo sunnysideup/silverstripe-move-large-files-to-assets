@@ -1,7 +1,7 @@
 {
     "name": "sunnysideup/move-large-files-to-assets",
-    "type": "silverstripe-vendormodule",
     "description": "Move (large) files from git repo to assets in case uploading is difficult",
+    "type": "silverstripe-vendormodule",
     "keywords": [
         "Silverstripe-CMS",
         "CMS",
@@ -12,6 +12,11 @@
         "files",
         "large files"
     ],
+    "require": {
+        "silverstripe/cms": "4.*"
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true,
     "license": "BSD-3-Clause",
     "authors": [
         {
@@ -20,8 +25,14 @@
             "role": "lead developer"
         }
     ],
-    "require": {
-        "silverstripe/framework": "~4.0",
-        "silverstripe/recipe-cms": "~4.0@stable"
+    "extra": {
+        "expose": [
+            "client/dist"
+        ]
+    },
+    "autoload": {
+        "psr-4": {
+            "Sunnysideup\\MoveLargeFilesToAssets\\": "src/"
+        }
     }
 }
