@@ -3,14 +3,20 @@
 namespace Sunnysideup\MoveLargeFilesToAssets;
 
 use SilverStripe\Assets\File;
+use SilverStripe\Assets\Image;
 use SilverStripe\Assets\Folder;
 use SilverStripe\Control\Controller;
 use SilverStripe\Control\Director;
 use SilverStripe\Dev\BuildTask;
+
+use SilverStripe\Dev\Tasks\MigrateFileTask;
 use SilverStripe\ORM\DB;
 
-class MoveFiles extends BuildTask
+class MoveFiles extends MigrateFileTask
 {
+
+    private static $segment = 'MoveFiles';
+
     /**
      * {@inheritDoc}
      */
@@ -27,7 +33,6 @@ class MoveFiles extends BuildTask
     protected $enabled = true;
 
     private static $folder_name = 'new-files';
-
     /**
      * {@inheritDoc}
      */
@@ -39,56 +44,50 @@ class MoveFiles extends BuildTask
         $baseWithFolderNameFromConfig = Controller::join_links($base, $folderNameFromConfig);
 
         if(is_dir($oldPathFromConfig)) {
-            $files = $this->getDirContents($oldPathFromConfig);
-        } else {
-            $files = [$oldPathFromConfig];
-        }
-        foreach($files as $oldPath) {
-            $newRelativePath = str_replace($base, '', $oldPath);
-            if(! $newRelativePath) {
-                $newRelativePath = $folderNameFromConfig;
-            }
-            $newPath = Controller::join_links(ASSETS_PATH, $newRelativePath);
-            $newRelativeFolderPath = ltrim(dirname($newRelativePath), '/');
-            $newFolderPath = Controller::join_links(ASSETS_PATH, $newRelativeFolderPath);
-            if(dirname($newPath) !== $newFolderPath) {
-                user_error('error in logic');
-                die('-----');
-            }
-            DB::alteration_message('base ' . $base);
-            DB::alteration_message('Moving ' . $oldPath . ' to ' . $newPath . '');
-            if (! file_exists($newPath)) {
-                if (file_exists($oldPath)) {
-                    DB::alteration_message('Creating Dir: ' . $newRelativeFolderPath);
-                    Folder::find_or_make($newRelativeFolderPath);
-                    if(file_exists($newFolderPath)) {
-                        DB::alteration_message('Moving ' . $oldPath . ' to ' . $newPath . '');
-                        rename($oldPath, $newPath);
-                        $this->addToDb($newPath);
-                    } else {
-                        DB::alteration_message('Could not create dir: '.$newFolderPath);
-                    }
-                } else {
-                    DB::alteration_message('Could not move ' . $oldPath . ' to ' . $newPath . ' because ' . $oldPath . ' does not exist.');
-                }
-            } else {
-                DB::alteration_message('Could not move ' . $oldPath . ' to ' . $newPath . ' because ' . $newPath . ' already exists.');
-            }
+            $newPath = Controller::join_links(ASSETS_PATH, $folderNameFromConfig);
+            DB::alteration_message('copying '.$oldPathFromConfig.' to '.$newPath);
+            rename($oldPathFromConfig, $newPath);
+            $this->registerFiles($newPath);
+            $this->defaultSubtasks = [
+                'move-files',
+                'migrate-folders',
+                'generate-cms-thumbnails',
+                'fix-folder-permissions',
+                'fix-secureassets',
+                'normalise-access',
+            ];
+            parent::run($request);
         }
     }
 
-    public function addToDb(string $newPath)
+    /**
+     * {@inheritDoc}
+     */
+    protected function registerFiles($newPath)
+    {
+        $files = $this->getDirContents($newPath);
+        foreach($files as $newPath) {
+            $this->addToDb($newPath);
+        }
+    }
+
+    protected function addToDb(string $newPath)
     {
         DB::alteration_message('considering ' . $newPath);
         if (! is_dir($newPath)) {
             $fileName = basename($newPath);
-            $folderPath = dirname($newPath);
+            $folderPath = str_replace(ASSETS_PATH . '/', '', dirname($newPath));
             $folder = Folder::find_or_make($folderPath);
             $filter = ['Name' => $fileName, 'ParentID' => $folder->ID];
-            $file = File::get()->filter($filter)->first();
+            $file = File::get()->filter($filter)->exists();
             if (! $file) {
-                DB::alteration_message('New file: ' . $newPath);
-                $file = File::create();
+                if($this->isImage($newPath)) {
+                    DB::alteration_message('New IMAGE!: ' . $newPath);
+                    $file = Image::create();
+                } else {
+                    DB::alteration_message('New FILE!: ' . $newPath);
+                    $file = File::create();
+                }
                 $file->setFromLocalFile($newPath);
                 $file->ParentID = $folder->ID;
                 $file->write();
@@ -113,5 +112,17 @@ class MoveFiles extends BuildTask
         }
 
         return $results;
+    }
+
+    protected function isImage(string $newPath) : bool
+    {
+        $ext = pathinfo(
+            parse_url($newPath, PHP_URL_PATH),
+            PATHINFO_EXTENSION
+        );
+        if(in_array($ext, ['jpeg', 'jpg', 'gif', 'png'])) {
+            return true;
+        }
+        return false;
     }
 }
