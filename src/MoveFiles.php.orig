@@ -17,17 +17,15 @@ class MoveFiles extends MigrateFileTask
 
     private static $segment = 'MoveFiles';
 
-    private static $include_reset = true;
+    /**
+     * {@inheritDoc}
+     */
+    protected $title = 'Copy (large) files to assets';
 
     /**
      * {@inheritDoc}
      */
-    protected $title = 'Copy (large / large number of) files to assets';
-
-    /**
-     * {@inheritDoc}
-     */
-    protected $description = 'Move predefined folder to assets/predefined folder and register in Database.';
+    protected $description = 'Move public/new-files to assets/new-files where new-files can be set as you see fit.';
 
     /**
      * {@inheritDoc}
@@ -40,16 +38,15 @@ class MoveFiles extends MigrateFileTask
      */
     public function run($request)
     {
-        $folderNameFromConfig = self::config()->get('folder_name');
+        $folderNameFromConfig = $this->config()->get('folder_name');
         $oldPathFromConfig = Controller::join_links(Director::baseFolder(), $folderNameFromConfig);
         $base = Director::baseFolder();
         $baseWithFolderNameFromConfig = Controller::join_links($base, $folderNameFromConfig);
 
         if(is_dir($oldPathFromConfig)) {
             $newPath = Controller::join_links(ASSETS_PATH, $folderNameFromConfig);
-            $this->reset($newPath);
             DB::alteration_message('copying '.$oldPathFromConfig.' to '.$newPath);
-            $this->rcopy($oldPathFromConfig, $newPath);
+            rename($oldPathFromConfig, $newPath);
             $this->registerFiles($newPath);
             $this->defaultSubtasks = [
                 'move-files',
@@ -61,21 +58,39 @@ class MoveFiles extends MigrateFileTask
             ];
             parent::run($request);
         }
-    }
-
-    public function reset($newPath)
-    {
-        $folderPath = str_replace(ASSETS_PATH . '/', '', $newPath);
-        $folder = Folder::find_or_make($folderPath);
-        if($folder) {
-            $folder->delete();
-        }
-        if(file_exists($newPath)) {
-            rmdir($newPath);
-        }
-        if(file_exists($newPath)) {
-            user_error('Could not reset files');
-        }
+<<<<<<< HEAD
+        foreach($files as $oldPath) {
+            $newRelativePath = str_replace($base, '', $oldPath);
+            if(! $newRelativePath) {
+                $newRelativePath = $folderNameFromConfig;
+            }
+            $newPath = Controller::join_links(ASSETS_PATH, $newRelativePath);
+            $newRelativeFolderPath = ltrim(dirname($newRelativePath), '/');
+            $newFolderPath = Controller::join_links(ASSETS_PATH, $newRelativeFolderPath);
+            if(dirname($newPath) !== $newFolderPath) {
+                user_error('error in logic');
+                die('-----');
+            }
+            DB::alteration_message('base ' . $base);
+            DB::alteration_message('Moving ' . $oldPath . ' to ' . $newPath . '');
+            if (! file_exists($newPath)) {
+                if (file_exists($oldPath)) {
+                    DB::alteration_message('Creating Dir: ' . $newRelativeFolderPath);
+                    Folder::find_or_make($newRelativeFolderPath);
+                    if(file_exists($newFolderPath)) {
+                        DB::alteration_message('Moving ' . $oldPath . ' to ' . $newPath . '');
+                        cp($oldPath, $newPath);
+                        $this->addToDb($newPath);
+                    } else {
+                        DB::alteration_message('Could not create dir: '.$newFolderPath);
+                    }
+                } else {
+                    DB::alteration_message('Could not move ' . $oldPath . ' to ' . $newPath . ' because ' . $oldPath . ' does not exist.');
+                }
+            } else {
+                DB::alteration_message('Could not move ' . $oldPath . ' to ' . $newPath . ' because ' . $newPath . ' already exists.');
+            }
+=======
     }
 
     /**
@@ -86,6 +101,7 @@ class MoveFiles extends MigrateFileTask
         $files = $this->getDirContents($newPath);
         foreach($files as $newPath) {
             $this->addToDb($newPath);
+>>>>>>> 49f87c17ed8ae3fec734b9091b775456a7014523
         }
     }
 
@@ -132,20 +148,8 @@ class MoveFiles extends MigrateFileTask
         return $results;
     }
 
-    protected function isImage(string $newPath) : bool
-    {
-        $ext = pathinfo(
-            parse_url($newPath, PHP_URL_PATH),
-            PATHINFO_EXTENSION
-        );
-        if(in_array($ext, ['jpeg', 'jpg', 'gif', 'png'])) {
-            return true;
-        }
-        return false;
-    }
-
-
-    protected function normalizePath($path)
+<<<<<<< HEAD
+    protected static function normalizePath($path)
     {
         return $path.(is_dir($path) && !preg_match('@/$@', $path) ? '/' : '');
     }
@@ -206,5 +210,17 @@ class MoveFiles extends MigrateFileTask
                 copy($file, $file_dest);
             }
         }
+=======
+    protected function isImage(string $newPath) : bool
+    {
+        $ext = pathinfo(
+            parse_url($newPath, PHP_URL_PATH),
+            PATHINFO_EXTENSION
+        );
+        if(in_array($ext, ['jpeg', 'jpg', 'gif', 'png'])) {
+            return true;
+        }
+        return false;
+>>>>>>> 49f87c17ed8ae3fec734b9091b775456a7014523
     }
 }
