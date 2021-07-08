@@ -33,7 +33,7 @@ class MoveFiles extends BuildTask
      */
     public function run($request)
     {
-        $folderNameFromConfig = self::config()->get('folder_name');
+        $folderNameFromConfig = $this->config()->get('folder_name');
         $oldPathFromConfig = Controller::join_links(Director::baseFolder(), $folderNameFromConfig);
         $base = Director::baseFolder();
         $baseWithFolderNameFromConfig = Controller::join_links($base, $folderNameFromConfig);
@@ -63,7 +63,7 @@ class MoveFiles extends BuildTask
                     Folder::find_or_make($newRelativeFolderPath);
                     if(file_exists($newFolderPath)) {
                         DB::alteration_message('Moving ' . $oldPath . ' to ' . $newPath . '');
-                        rename($oldPath, $newPath);
+                        cp($oldPath, $newPath);
                         $this->addToDb($newPath);
                     } else {
                         DB::alteration_message('Could not create dir: '.$newFolderPath);
@@ -113,5 +113,68 @@ class MoveFiles extends BuildTask
         }
 
         return $results;
+    }
+
+    protected static function normalizePath($path)
+    {
+        return $path.(is_dir($path) && !preg_match('@/$@', $path) ? '/' : '');
+    }
+
+    protected function rscandir($dir, $sort = SCANDIR_SORT_ASCENDING)
+    {
+        $results = array();
+
+        if(!is_dir($dir)) {
+            return $results;
+        }
+
+        $dir = $this->normalizePath($dir);
+
+        $objects = scandir($dir, $sort);
+
+        foreach($objects as $object) {
+            if($object != '.' && $object != '..')
+            {
+                if(is_dir($dir.$object)) {
+                    $results = array_merge($results, $this->rscandir($dir.$object, $sort));
+                }  else {
+                    array_push($results, $dir.$object);
+                }
+            }
+        }
+
+        array_push($results, $dir);
+
+        return $results;
+    }
+
+    protected function rcopy($source, $dest, $destmode = null)
+    {
+        $files = $this->rscandir($source);
+
+        if(empty($files)) {
+            return;
+        }
+
+        if(!file_exists($dest)) {
+            mkdir($dest, is_int($destmode) ? $destmode : fileperms($source), true);
+        }
+
+        $source = $this->normalizePath(realpath($source));
+        $dest = $this->normalizePath(realpath($dest));
+
+        foreach($files as $file)
+        {
+            $file_dest = str_replace($source, $dest, $file);
+
+            if(is_dir($file))
+            {
+                if(!file_exists($file_dest))
+                mkdir($file_dest, is_int($destmode) ? $destmode : fileperms($file), true);
+            }
+            else {
+                copy($file, $file_dest);
+            }
+        }
     }
 }
