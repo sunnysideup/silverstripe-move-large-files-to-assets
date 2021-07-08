@@ -65,16 +65,22 @@ class MoveFiles extends MigrateFileTask
 
     public function reset($newPath)
     {
-        $folderPath = str_replace(ASSETS_PATH . '/', '', $newPath);
-        $folder = Folder::find_or_make($folderPath);
-        if($folder) {
-            $folder->delete();
-        }
-        if(file_exists($newPath)) {
-            rmdir($newPath);
-        }
-        if(file_exists($newPath)) {
-            user_error('Could not reset files');
+        if($this->Config()->get('include_reset')) {
+            $folderPath = str_replace(ASSETS_PATH . '/', '', $newPath);
+            $folder = Folder::find_or_make($folderPath);
+            if($folder) {
+                $folder->delete();
+                DB::alteration_message('Deleting folder ' . $folderPath.', based on '.$newPath, 'deleted');
+            }
+            if(file_exists($newPath)) {
+                rmdir($newPath);
+                DB::alteration_message('Deleting folder ' . $folderPath.', based on '.$newPath.', from file system', 'deleted');
+            }
+            if(file_exists($newPath)) {
+                user_error('Could not reset files');
+            }
+        } else {
+            DB::alteration_message('not including reset');
         }
     }
 
