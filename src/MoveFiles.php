@@ -20,24 +20,24 @@ class MoveFiles extends MigrateFileTask
     private static $include_reset = true;
 
     /**
-     * {@inheritDoc}
-     */
+    * {@inheritDoc}
+    */
     protected $title = 'Copy (large / large number of) files to assets';
 
     /**
-     * {@inheritDoc}
-     */
+    * {@inheritDoc}
+    */
     protected $description = 'Move predefined folder to assets/predefined folder and register in Database.';
 
     /**
-     * {@inheritDoc}
-     */
+    * {@inheritDoc}
+    */
     protected $enabled = true;
 
     private static $folder_name = 'new-files';
     /**
-     * {@inheritDoc}
-     */
+    * {@inheritDoc}
+    */
     public function run($request)
     {
         $folderNameFromConfig = self::config()->get('folder_name');
@@ -48,7 +48,8 @@ class MoveFiles extends MigrateFileTask
         if(is_dir($oldPathFromConfig)) {
             $newPath = Controller::join_links(ASSETS_PATH, $folderNameFromConfig);
             $this->reset($newPath);
-            DB::alteration_message('copying '.$oldPathFromConfig.' to '.$newPath);
+            $this->reset($newPath);
+            DB::alteration_message('copying --'.$oldPathFromConfig.'-- to --'.$newPath);
             $this->rcopy($oldPathFromConfig, $newPath);
             $this->registerFiles($newPath);
             $this->defaultSubtasks = [
@@ -73,20 +74,20 @@ class MoveFiles extends MigrateFileTask
                 DB::alteration_message('Deleting folder ' . $folderPath.', based on '.$newPath, 'deleted');
             }
             if(file_exists($newPath)) {
-                rmdir($newPath);
+                $this->rrmdir($newPath);
                 DB::alteration_message('Deleting folder ' . $folderPath.', based on '.$newPath.', from file system', 'deleted');
             }
             if(file_exists($newPath)) {
-                user_error('Could not reset files');
+                user_error('ERROR: Could not reset files', E_USER_ERROR);
             }
         } else {
-            DB::alteration_message('not including reset');
+            DB::alteration_message('OK: not including reset');
         }
     }
 
     /**
-     * {@inheritDoc}
-     */
+    * {@inheritDoc}
+    */
     protected function registerFiles($newPath)
     {
         $files = $this->getDirContents($newPath);
@@ -186,31 +187,69 @@ class MoveFiles extends MigrateFileTask
 
     protected function rcopy($source, $dest, $destmode = null)
     {
-        $files = $this->rscandir($source);
-
-        if(empty($files)) {
+        if($this->Config()->get('use_exec_for_copy')) {
+            exec('cp '.$source.' '.ASSETS_PATH. ' -r');
             return;
-        }
+        } else {
+            $files = $this->rscandir($source);
 
-        if(!file_exists($dest)) {
-            mkdir($dest, is_int($destmode) ? $destmode : fileperms($source), true);
-        }
-
-        $source = $this->normalizePath(realpath($source));
-        $dest = $this->normalizePath(realpath($dest));
-
-        foreach($files as $file)
-        {
-            $file_dest = str_replace($source, $dest, $file);
-
-            if(is_dir($file))
-            {
-                if(!file_exists($file_dest))
-                mkdir($file_dest, is_int($destmode) ? $destmode : fileperms($file), true);
+            if(empty($files)) {
+                return;
             }
-            else {
-                copy($file, $file_dest);
+
+            if(!file_exists($dest)) {
+                DB::alteration_message('MKDIR --'.$dest);
+                mkdir($dest, is_int($destmode) ? $destmode : fileperms($source), true);
+            }
+
+            $source = $this->normalizePath(realpath($source));
+            $dest = $this->normalizePath(realpath($dest));
+
+            foreach($files as $file) {
+                $file_dest = str_replace($source, $dest, $file);
+                $file = str_replace(' ', ' ', $file);
+                $file_dest = str_replace(' ', ' ', $file_dest);
+                if(is_dir($file)) {
+                    if(!file_exists($file_dest)) {
+                        DB::alteration_message('MKDIR --'.$file_dest);
+                        mkdir($file_dest, is_int($destmode) ? $destmode : fileperms($file), true);
+                    }
+                } else {
+                    DB::alteration_message('COPY --'.$file.'-- to --'.$file_dest . '--');
+                    if(file_exists($file)) {
+                        if(!file_exists($file_dest)) {
+                            copy($file, $file_dest);
+                            if( ! file_exists($file_dest)) {
+                                DB::alteration_message('ERROR could not find after copy: --'.$file_dest);
+                                die();
+                            }
+                        } else {
+                            DB::alteration_message('ERROR file already exists: --'.$file_dest);
+                        }
+                    } else {
+                        DB::alteration_message('ERROR could not find: --'.$file);
+                        die('');
+                    }
+                }
             }
         }
     }
+
+    protected function rrmdir($dir)
+    {
+        if (is_dir($dir)) {
+            $objects = scandir($dir);
+            foreach ($objects as $object) {
+                if ($object != "." && $object != "..") {
+                    if (is_dir($dir. DIRECTORY_SEPARATOR .$object) && !is_link($dir."/".$object)) {
+                        $this->rrmdir($dir. DIRECTORY_SEPARATOR .$object);
+                    } else {
+                        unlink($dir. DIRECTORY_SEPARATOR .$object);
+                    }
+                }
+            }
+            rmdir($dir);
+        }
+    }
+
 }
