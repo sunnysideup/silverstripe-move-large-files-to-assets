@@ -19,6 +19,8 @@ class MoveFiles extends MigrateFileTask
 
     private static $include_reset = true;
 
+    private static $use_exec_for_copy = true;
+
     /**
     * {@inheritDoc}
     */
@@ -35,6 +37,7 @@ class MoveFiles extends MigrateFileTask
     protected $enabled = true;
 
     private static $folder_name = 'new-files';
+
     /**
     * {@inheritDoc}
     */
