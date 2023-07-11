@@ -13,7 +13,7 @@
         "large files"
     ],
     "require": {
-        "silverstripe/cms": "4.*"
+        "silverstripe/cms": "^4.0 || ^ 5.0"
     },
     "minimum-stability": "dev",
     "prefer-stable": true,
